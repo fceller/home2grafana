@@ -13,7 +13,8 @@ Devices are described by YAML files inside the _setup_ directory.
     ---
     source:
     provider: iobroker
-    metric: energy_watt_total
+    energy_metric: energy_watthour
+    power_metric: power_watt
     interval: 90s
     devices:
       - address: 192.168.160.200
@@ -30,15 +31,26 @@ extract from the meta-data stored in CCUx. You can also overwrite this.
 
 Currently, the followin homematic devices are supported
 
-* HMIP-PSM
+* HM-CC-RT-DN
 * HM-ES-PMSw1-Pl
+* HM-ES-TX-WM
+* HM-Sec-MDIR-2
+* HM-WDS10-TH-O
+* HM-WDS100-C6-O
+* HM-WDS40-TH-I
+* HMIP-PSM
+* HmIP-SMI
+* HmIP-SMI55
+* HmIP-WTH-2
+* HmIP-eTRV-B
 
 In case you want to add new devices have a look at _homematic.go_ and add the device.
 
     ---
     source:
     provider: homematic
-    metric: energy_watt_total
+    metric: energy_watthour
+    power_metric: power_watt
     interval: 120s
     address: 192.168.160.21
     devices:

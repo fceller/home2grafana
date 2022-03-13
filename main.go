@@ -49,6 +49,7 @@ import (
 type DeviceItem struct {
 	methods  devices.DeviceInterface
 	last     float64
+	lastRate float64
 	time     int64
 	timeRate int64
 	expiry   int64
@@ -109,31 +110,30 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 			counter := fmt.Sprintf("%s_%s", name, totalSuffix)
 			now := time.Now().UnixMilli()
 
-			if math.IsNaN(d.last) {
-				d.last = value
-				d.time = now
-				d.timeRate = d.time
-			} else if value >= d.last {
-				PrometheusCounters[counter].WithLabelValues(d.methods.Labels()...).Add(value - d.last)
+			if !math.IsNaN(d.last) {
+				if value >= d.last {
+					PrometheusCounters[counter].WithLabelValues(d.methods.Labels()...).Add(value - d.last)
+				} else {
+					PrometheusCounters[counter] = prometheus.NewCounterVec(prometheus.CounterOpts{
+						Name: counter,
+						Help: name,
+					}, []string{"provider", "name", "room"})
+				}
+			}
 
-				avg := fmt.Sprintf("%s_%s", name, rateSuffix)
+			d.last = value
+			d.time = now
 
-				if value > d.last && now > d.timeRate {
-					computed := (value - d.last) / float64(now-d.timeRate) * 1000
+			if !math.IsNaN(d.lastRate) {
+				if value > d.lastRate && now > d.timeRate {
+					avg := fmt.Sprintf("%s_%s", name, rateSuffix)
+					computed := (value - d.lastRate) / float64(now-d.timeRate) * 1000
 					PrometheusGauges[avg].WithLabelValues(d.methods.Labels()...).Set(computed)
+					d.lastRate = value
 					d.timeRate = now
 				}
-
-				d.last = value
-				d.time = now
 			} else {
-				PrometheusCounters[counter] = prometheus.NewCounterVec(prometheus.CounterOpts{
-					Name: counter,
-					Help: name,
-				}, []string{"provider", "name", "room"})
-				
-				d.last = value
-				d.time = now
+				d.lastRate = value
 				d.timeRate = now
 			}
 		}
@@ -156,14 +156,17 @@ func readData(deviceList []devices.DeviceInterface) {
 	}
 
 	deviceHeap := make(PriorityQueue, len(deviceList))
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 
 	for i, d := range deviceList {
 		deviceHeap[i] = &DeviceItem{
-			methods: d,
-			last:    math.NaN(),
-			expiry:  now + (500+rand.Int63n(501))*int64(d.IntervalSec())/1000,
-			index:   i,
+			methods:  d,
+			last:     math.NaN(),
+			lastRate: math.NaN(),
+			time:     now,
+			timeRate: now,
+			expiry:   now/1000 + (500+rand.Int63n(501))*int64(d.IntervalSec())/1000,
+			index:    i,
 		}
 	}
 

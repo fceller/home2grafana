@@ -30,15 +30,13 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/paulrosania/go-charset/charset"
-	_ "github.com/paulrosania/go-charset/data"
 	"net/http"
 	"io"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
+//	"golang.org/x/text/encoding/charmap"
 )
 
 type HomematicDesc struct {
@@ -47,6 +45,8 @@ type HomematicDesc struct {
 	Room               string
 	Interval           float64
 	ScriptUrl          string
+	UserName           string
+	Password           string
 	EnergyMetric       string
 	EnergyChannel      int
 	PowerMetric        string
@@ -65,6 +65,8 @@ type HomematicDevice struct {
 	Room      string
 	Interval  float64
 	ScriptUrl string
+	UserName           string
+	Password           string
 	Metric    string
 	Category  string
 	DPChannel int
@@ -121,51 +123,38 @@ type homematicXml struct {
 	Value         string   `xml:"value"`
 }
 
-func parseXML(xmlDoc []byte, target interface{}) {
-	reader := bytes.NewReader(xmlDoc)
-	decoder := xml.NewDecoder(reader)
-	decoder.CharsetReader = charset.NewReader
-	if err := decoder.Decode(target); err != nil {
-		log.Fatalf("unable to parse XML '%s':\n%s", err, xmlDoc)
+func readHomematicXml(
+	ctx Context, scriptUrl string, userName string, password string, cmd string, result *homematicXml) error {
+
+	req, err := http.NewRequest("POST", scriptUrl, bytes.NewBufferString(cmd))
+	if err != nil {
+		return err
 	}
-}
 
-func readHomematicXml(ctx Context, scriptUrl string, cmd string, result *homematicXml) error {
-
-	log.Printf("%s",bytes.NewBufferString(cmd))
-
-	req, err1 := http.NewRequest("POST", scriptUrl, bytes.NewBufferString(cmd))
-	req.SetBasicAuth("Admin", "q.97U-n.")
+	req.SetBasicAuth(userName, password)
 	cli := &http.Client{}
-	response, err1 := cli.Do(req)
-	
-//	response, err1 := ctx.Post(scriptUrl, "application/text", bytes.NewBufferString(cmd))
-
-	if err1 != nil {
-		return err1
+	response, err := cli.Do(req)
+	if err != nil {
+		return err
+	}
+	body, err := io.ReadAll(response.Body)
+	if response.StatusCode != 200 {
+		ctx.Clog.Fatalf("request failed: Response code %d ", string(body))
 	}
 
 	defer response.Body.Close()
 
-	body, err2 := io.ReadAll(response.Body)
-	log.Printf("body ==========  %s",string(body))
-	var parsed []byte
-	parseXML(body, &parsed)
-	log.Printf("body ==========  %s",string(parsed))
+	if err != nil {
+		return err
+	}
 
-	if err2 != nil {
-		return err2
+	err = xml.Unmarshal(body, &result)
+
+	if err != nil {
+		return err
 	}
 
 	return nil
-	err3 := xml.Unmarshal(parsed, &result)
-
-	if err3 != nil {
-		return err3
-	}
-
-	return nil
-
 }
 
 func getValue(ctx Context, t *HomematicDevice) (float64, error) {
@@ -173,7 +162,7 @@ func getValue(ctx Context, t *HomematicDevice) (float64, error) {
 		`var value = dom.GetObject('%s:%d.%s').State();`, t.HmName, t.DPChannel, t.DPName)
 
 	info := homematicXml{}
-	err1 := readHomematicXml(ctx, t.ScriptUrl, valueCmd, &info)
+	err1 := readHomematicXml(ctx, t.ScriptUrl, t.UserName, t.Password, valueCmd, &info)
 
 	if err1 != nil {
 		return 0, err1
@@ -197,9 +186,8 @@ func readHmDevice(ctx Context, channel int, name string, homematic *HomematicDes
 		var room = dom.GetObject(roomId);
 	`, homematic.HmName, channel, name)
 
-	log.Printf(roomCmd)
 	info := homematicXml{}
-	err1 := readHomematicXml(ctx, homematic.ScriptUrl, roomCmd, &info)
+	err1 := readHomematicXml(ctx, homematic.ScriptUrl, homematic.UserName, homematic.Password, roomCmd, &info)
 
 	if err1 != nil {
 		return err1
@@ -304,14 +292,13 @@ func generateHmDevice(ctx Context, deviceList *[]DeviceInterface, desc *Homemati
 
 func generateHomematic(ctx Context, deviceList *[]DeviceInterface, desc *HomematicDesc) error {
 	typeCmd := fmt.Sprintf(
-`
-var channel = dom.GetObject('%s:0.UNREACH').Channel();
-var device = dom.GetObject(dom.GetObject(channel).Device());
-var hssType = device.HssType();
-var interface = dom.GetObject(device.Interface());`, desc.HmName)
+		`var channel = dom.GetObject('%s:0.UNREACH').Channel();
+		var device = dom.GetObject(dom.GetObject(channel).Device());
+		var hssType = device.HssType();
+		var interface = dom.GetObject(device.Interface());`, desc.HmName)
 
 	info := homematicXml{}
-	err1 := readHomematicXml(ctx, desc.ScriptUrl, typeCmd, &info)
+	err1 := readHomematicXml(ctx, desc.ScriptUrl, desc.UserName, desc.Password, typeCmd, &info)
 
 	if err1 != nil {
 		return err1
@@ -414,7 +401,16 @@ func LoadHomematicDevices(ctx Context, deviceList *[]DeviceInterface, device Dev
 		duration = 60
 	}
 
-	scriptUrl := fmt.Sprintf("http://%s:8181/Test.exe", device.Source.Address)
+	var port string
+	var protocol = "http"
+	if (device.Source.useSSL) {
+		port = "48181"
+		protocol += "s"
+	} else {
+		port = "8181"
+	}
+
+	scriptUrl := fmt.Sprintf("%s://%s:%s/Test.exe", protocol, device.Source.Address, port)
 
 	for _, d := range device.Source.Devices {
 		homematic := HomematicDesc{
@@ -426,6 +422,8 @@ func LoadHomematicDevices(ctx Context, deviceList *[]DeviceInterface, device Dev
 			Name:              d.Name,
 			Room:              d.Room,
 			ScriptUrl:         scriptUrl,
+			UserName:          device.Source.UserName,
+			Password:          device.Source.Password,
 			Interval:          duration.Seconds(),
 		}
 

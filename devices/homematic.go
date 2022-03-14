@@ -31,11 +31,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/net/html/charset"
+
 )
 
 type HomematicDesc struct {
@@ -44,6 +46,8 @@ type HomematicDesc struct {
 	Room               string
 	Interval           float64
 	ScriptUrl          string
+	UserName           string
+	Password           string
 	EnergyMetric       string
 	EnergyChannel      int
 	PowerMetric        string
@@ -62,6 +66,8 @@ type HomematicDevice struct {
 	Room      string
 	Interval  float64
 	ScriptUrl string
+	UserName           string
+	Password           string
 	Metric    string
 	Category  string
 	DPChannel int
@@ -118,24 +124,37 @@ type homematicXml struct {
 	Value         string   `xml:"value"`
 }
 
-func readHomematicXml(ctx Context, scriptUrl string, cmd string, result *homematicXml) error {
-	response, err1 := ctx.Post(scriptUrl, "application/text", bytes.NewBufferString(cmd))
+func parseXml(ctx Context, xmld []byte, parsed interface{}) (error) {
 
-	if err1 != nil {
-		return err1
+	reader := bytes.NewReader(xmld)
+	decoder := xml.NewDecoder(reader)
+	decoder.CharsetReader = charset.NewReaderLabel
+	return decoder.Decode(parsed);
+}
+
+func readHomematicXml(
+	ctx Context, scriptUrl string, userName string, password string, cmd string, result *homematicXml) error {
+
+	req, err := http.NewRequest("POST", scriptUrl, bytes.NewBufferString(cmd))
+	if err != nil {
+		return err
+	}
+
+	req.SetBasicAuth(userName, password)
+	cli := &http.Client{}
+	response, err := cli.Do(req)
+	if err != nil {
+		return err
+	}
+	body, err := io.ReadAll(response.Body)
+	if response.StatusCode != 200 {
+		ctx.Clog.Fatalf("request failed: Response code %d ", string(body))
 	}
 
 	defer response.Body.Close()
-	body, err2 := io.ReadAll(charmap.ISO8859_1.NewDecoder().Reader(response.Body))
 
-	if err2 != nil {
-		return err2
-	}
-
-	err3 := xml.Unmarshal(body, &result)
-
-	if err3 != nil {
-		return err3
+	if err = parseXml(ctx, body, &result); err != nil {
+		return err
 	}
 
 	return nil
@@ -146,7 +165,7 @@ func getValue(ctx Context, t *HomematicDevice) (float64, error) {
 		`var value = dom.GetObject('%s:%d.%s').State();`, t.HmName, t.DPChannel, t.DPName)
 
 	info := homematicXml{}
-	err1 := readHomematicXml(ctx, t.ScriptUrl, valueCmd, &info)
+	err1 := readHomematicXml(ctx, t.ScriptUrl, t.UserName, t.Password, valueCmd, &info)
 
 	if err1 != nil {
 		return 0, err1
@@ -171,7 +190,7 @@ func readHmDevice(ctx Context, channel int, name string, homematic *HomematicDes
 	`, homematic.HmName, channel, name)
 
 	info := homematicXml{}
-	err1 := readHomematicXml(ctx, homematic.ScriptUrl, roomCmd, &info)
+	err1 := readHomematicXml(ctx, homematic.ScriptUrl, homematic.UserName, homematic.Password, roomCmd, &info)
 
 	if err1 != nil {
 		return err1
@@ -282,7 +301,7 @@ func generateHomematic(ctx Context, deviceList *[]DeviceInterface, desc *Homemat
 		var interface = dom.GetObject(device.Interface());`, desc.HmName)
 
 	info := homematicXml{}
-	err1 := readHomematicXml(ctx, desc.ScriptUrl, typeCmd, &info)
+	err1 := readHomematicXml(ctx, desc.ScriptUrl, desc.UserName, desc.Password, typeCmd, &info)
 
 	if err1 != nil {
 		return err1
@@ -385,7 +404,16 @@ func LoadHomematicDevices(ctx Context, deviceList *[]DeviceInterface, device Dev
 		duration = 60
 	}
 
-	scriptUrl := fmt.Sprintf("http://%s:8181/Test.exe", device.Source.Address)
+	var port string
+	var protocol = "http"
+	if (device.Source.useSSL) {
+		port = "48181"
+		protocol += "s"
+	} else {
+		port = "8181"
+	}
+
+	scriptUrl := fmt.Sprintf("%s://%s:%s/Test.exe", protocol, device.Source.Address, port)
 
 	for _, d := range device.Source.Devices {
 		homematic := HomematicDesc{
@@ -397,6 +425,8 @@ func LoadHomematicDevices(ctx Context, deviceList *[]DeviceInterface, device Dev
 			Name:              d.Name,
 			Room:              d.Room,
 			ScriptUrl:         scriptUrl,
+			UserName:          device.Source.UserName,
+			Password:          device.Source.Password,
 			Interval:          duration.Seconds(),
 		}
 

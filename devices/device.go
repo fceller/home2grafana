@@ -45,6 +45,9 @@ type Device struct {
 		TemperatureMetric string `yaml:"temperature_metric"`
 		LightMetric       string `yaml:"light_metric"`
 		Address           string `yaml:"address"`
+		UserName          string `yaml:"user_name,omitempty"`
+		Password          string `yaml:"password,omitempty"`
+		useSSL            bool   `yaml:"ssl,omitempty"`
 		Interval          string `yaml:"interval"`
 		Devices           []struct {
 			Name    string `yaml:"name"`

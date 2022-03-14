@@ -7,50 +7,46 @@ source:
   light_metric: light
   interval: 120s
   address: 192.168.160.21
-#  address: auto.vahedipour.de
-#  user_name: Admin
-#  password: xxxxxxx
-#  ssl: true
   devices:
-  - hm_name: HmIP-RF.0001DD89971DDD
-    name: Server
-  - hm_name: HmIP-RF.0001DD89971DF4
-    name: Büro
-  - hm_name: HmIP-RF.0001DD89971D3F
-    name: Kühlschrank (OG)
-  - hm_name: BidCos-RF.LEQ0535163
-    name: Kühlschrank (EG)
-  - hm_name: BidCos-RF.SEQ1375983
-  - hm_name: HmIP-RF.000A9A4999591D
-    name: Ankleide
-  - hm_name: HmIP-RF.000A9A49A2BE14
-    name: Bad
-  - hm_name: HmIP-RF.000A9A49A4CD37
-    name: Kaminzimmer
-  - hm_name: HmIP-RF.000A9A49A2BE42
-    name: Schlafzimmer
-  - hm_name: BidCos-RF.IEQ0504943
-    name: Garten
-  - hm_name: BidCos-RF.JEQ0122318
-    name: Wintergarten
-  - hm_name: BidCos-RF.NEQ0879094
-    room: Büro
-  - hm_name: BidCos-RF.NEQ0877114
-    room: Treppenhaus
-  - hm_name: BidCos-RF.NEQ0879103
-    room: Wintergarten
-  - hm_name: HmIP-RF.00201A499D9E10
-    room: Gäste WC
-  - hm_name: HmIP-RF.00091A499B7698
-    name: Treppenhaus EG
-    room: Treppenhaus
-  - hm_name: HmIP-RF.00091BE99D56B9
-    name: Treppenhaus OG
-    room: Treppenhaus
-  - hm_name: BidCos-RF.MEQ0537677
-    name: Haustür
-    room: Draußen
-  - hm_name: BidCos-RF.IEQ0504943
-    name: Garten
-    room: Draußen
-  - hm_name: HmIP-RF.0014DBE9913BE0
+    - hm_name: HmIP-RF.0001DD89971DDD
+      name: Server
+    - hm_name: HmIP-RF.0001DD89971DF4
+      name: Büro
+    - hm_name: HmIP-RF.0001DD89971D3F
+      name: Kühlschrank (OG)
+    - hm_name: BidCos-RF.LEQ0535163
+      name: Kühlschrank (EG)
+    - hm_name: BidCos-RF.SEQ1375983
+    - hm_name: HmIP-RF.000A9A4999591D
+      name: Ankleide
+    - hm_name: HmIP-RF.000A9A49A2BE14
+      name: Bad
+    - hm_name: HmIP-RF.000A9A49A4CD37
+      name: Kaminzimmer
+    - hm_name: HmIP-RF.000A9A49A2BE42
+      name: Schlafzimmer
+    - hm_name: BidCos-RF.IEQ0504943
+      name: Garten
+    - hm_name: BidCos-RF.JEQ0122318
+      name: Wintergarten
+    - hm_name: BidCos-RF.NEQ0879094
+      room: Büro
+    - hm_name: BidCos-RF.NEQ0877114
+      room: Treppenhaus
+    - hm_name: BidCos-RF.NEQ0879103
+      room: Wintergarten
+    - hm_name: HmIP-RF.00201A499D9E10
+      room: Gäste WC
+    - hm_name: HmIP-RF.00091A499B7698
+      name: Treppenhaus EG
+      room: Treppenhaus
+    - hm_name: HmIP-RF.00091BE99D56B9
+      name: Treppenhaus OG
+      room: Treppenhaus
+    - hm_name: BidCos-RF.MEQ0537677
+      name: Haustür
+      room: Draußen
+    - hm_name: BidCos-RF.IEQ0504943
+      name: Garten
+      room: Draußen
+    - hm_name: HmIP-RF.0014DBE9913BE0

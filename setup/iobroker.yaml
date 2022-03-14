@@ -1,0 +1,25 @@
+---
+source:
+  provider: iobroker
+  temperature_metric: temperature_celsius
+  interval: 120s
+  address: 192.168.160.61:22001
+  devices:
+    - address: panasonic-comfort-cloud.0.Büro.insideTemperature
+      room: Büro
+      name: Klima Büro
+    - address: panasonic-comfort-cloud.0.Kaminzimmer.insideTemperature
+      room: Kaminzimmer
+      name: Klima Kaminzimmer
+    - address: panasonic-comfort-cloud.0.Schlafzimmer .insideTemperature
+      room: Schlafzimmer
+      name: Klima Schlafzimmer
+    - address: panasonic-comfort-cloud.0.Wohnzimmer.insideTemperature
+      room: Wohnzimmer
+      name: Klima Wohnzimmer
+    - address: panasonic-comfort-cloud.0.Wohnzimmer.outTemperature
+      room: Garten
+      name: Klima Wohnzimmer
+    - address: panasonic-comfort-cloud.0.Büro.outTemperature
+      room: Garten
+      name: Klima Büro

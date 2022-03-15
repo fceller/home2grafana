@@ -37,7 +37,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/html/charset"
-
 )
 
 type HomematicDesc struct {
@@ -66,8 +65,8 @@ type HomematicDevice struct {
 	Room      string
 	Interval  float64
 	ScriptUrl string
-	UserName           string
-	Password           string
+	UserName  string
+	Password  string
 	Metric    string
 	Category  string
 	DPChannel int
@@ -124,12 +123,12 @@ type homematicXml struct {
 	Value         string   `xml:"value"`
 }
 
-func parseXml(ctx Context, xmld []byte, parsed interface{}) (error) {
-
+func parseXml(ctx Context, xmld []byte, parsed interface{}) error {
 	reader := bytes.NewReader(xmld)
 	decoder := xml.NewDecoder(reader)
 	decoder.CharsetReader = charset.NewReaderLabel
-	return decoder.Decode(parsed);
+	
+	return decoder.Decode(parsed)
 }
 
 func readHomematicXml(
@@ -143,15 +142,17 @@ func readHomematicXml(
 	req.SetBasicAuth(userName, password)
 	cli := &http.Client{}
 	response, err := cli.Do(req)
+
 	if err != nil {
 		return err
 	}
+
 	body, err := io.ReadAll(response.Body)
+	defer response.Body.Close()
+
 	if response.StatusCode != 200 {
 		ctx.Clog.Fatalf("request failed: Response code %d ", string(body))
 	}
-
-	defer response.Body.Close()
 
 	if err = parseXml(ctx, body, &result); err != nil {
 		return err
@@ -406,7 +407,7 @@ func LoadHomematicDevices(ctx Context, deviceList *[]DeviceInterface, device Dev
 
 	var port string
 	var protocol = "http"
-	if (device.Source.useSSL) {
+	if device.Source.useSSL {
 		port = "48181"
 		protocol += "s"
 	} else {

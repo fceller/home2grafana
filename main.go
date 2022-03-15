@@ -101,7 +101,7 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 
 	if err == nil {
 		ctx.PushField(category, value)
-		ctx.Info(fmt.Sprintf("read %s", category))
+		ctx.Info(fmt.Sprintf("read %s: %f", category, value))
 		ctx.Pop()
 
 		PrometheusGauges[name].WithLabelValues(d.methods.Labels()...).Set(value)

@@ -94,6 +94,8 @@ var PrometheusCounters = make(map[string]*prometheus.CounterVec)
 const totalSuffix = "total"
 const rateSuffix = "rate"
 
+var prometheusRegistry *prometheus.Registry
+
 func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 	category := d.methods.CategoryName()
 	name := d.methods.MetricName()
@@ -114,10 +116,12 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 				if value >= d.last {
 					PrometheusCounters[counter].WithLabelValues(d.methods.Labels()...).Add(value - d.last)
 				} else {
+					prometheusRegistry.Unregister(PrometheusCounters[counter])
 					PrometheusCounters[counter] = prometheus.NewCounterVec(prometheus.CounterOpts{
 						Name: counter,
 						Help: name,
 					}, []string{"provider", "name", "room"})
+					prometheusRegistry.MustRegister(PrometheusCounters[counter])
 				}
 			}
 
@@ -211,7 +215,7 @@ func main() {
 		logrus.Panic("no devices have been defined, exiting...")
 	}
 
-	r := prometheus.NewRegistry()
+	prometheusRegistry := prometheus.NewRegistry()
 
 	for _, d := range deviceList {
 		name := d.MetricName()
@@ -225,7 +229,7 @@ func main() {
 					Help: name,
 				}, []string{"provider", "name", "room"})
 
-				r.MustRegister(PrometheusGauges[name])
+				prometheusRegistry.MustRegister(PrometheusGauges[name])
 			}
 
 			if cat == "energy" {
@@ -237,7 +241,7 @@ func main() {
 						Help: name,
 					}, []string{"provider", "name", "room"})
 
-					r.MustRegister(PrometheusCounters[counter])
+					prometheusRegistry.MustRegister(PrometheusCounters[counter])
 				}
 			}
 
@@ -250,14 +254,14 @@ func main() {
 						Help: name,
 					}, []string{"provider", "name", "room"})
 
-					r.MustRegister(PrometheusGauges[avg])
+					prometheusRegistry.MustRegister(PrometheusGauges[avg])
 				}
 			}
 		}
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(r, promhttp.HandlerOpts{}))
+	mux.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
 
 	go readData(deviceList)
 

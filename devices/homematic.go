@@ -30,13 +30,13 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"golang.org/x/text/encoding/charmap"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/html/charset"
 )
 
 type HomematicDesc struct {
@@ -123,14 +123,6 @@ type homematicXml struct {
 	Value         string   `xml:"value"`
 }
 
-func parseXml(ctx Context, xmld []byte, parsed interface{}) error {
-	reader := bytes.NewReader(xmld)
-	decoder := xml.NewDecoder(reader)
-	decoder.CharsetReader = charset.NewReaderLabel
-	
-	return decoder.Decode(parsed)
-}
-
 func readHomematicXml(
 	ctx Context, scriptUrl string, userName string, password string, cmd string, result *homematicXml) error {
 
@@ -147,7 +139,7 @@ func readHomematicXml(
 		return err
 	}
 
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(charmap.ISO8859_1.NewDecoder().Reader(response.Body))
 	defer response.Body.Close()
 
 	if response.StatusCode != 200 {

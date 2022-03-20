@@ -88,8 +88,9 @@ func (pq PriorityQueue) Swap(i, j int) {
 	pq[j].index = j
 }
 
-var PrometheusGauges = make(map[string]*prometheus.GaugeVec)
-var PrometheusCounters = make(map[string]*prometheus.CounterVec)
+var prometheusGauges = make(map[string]*prometheus.GaugeVec)
+var prometheusCounters = make(map[string]*prometheus.CounterVec)
+var registry *prometheus.Registry
 
 const totalSuffix = "total"
 const rateSuffix = "rate"
@@ -104,7 +105,7 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 		ctx.Info(fmt.Sprintf("read %s: %f", category, value))
 		ctx.Pop()
 
-		PrometheusGauges[name].WithLabelValues(d.methods.Labels()...).Set(value)
+		prometheusGauges[name].WithLabelValues(d.methods.Labels()...).Set(value)
 
 		if category == "energy" {
 			counter := fmt.Sprintf("%s_%s", name, totalSuffix)
@@ -112,9 +113,10 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 
 			if !math.IsNaN(d.last) {
 				if value >= d.last {
-					PrometheusCounters[counter].WithLabelValues(d.methods.Labels()...).Add(value - d.last)
+					prometheusCounters[counter].WithLabelValues(d.methods.Labels()...).Add(value - d.last)
 				} else {
-					PrometheusCounters[counter] = prometheus.NewCounterVec(prometheus.CounterOpts{
+					registry.Unregister(prometheusCounters[counter])
+					prometheusCounters[counter] = prometheus.NewCounterVec(prometheus.CounterOpts{
 						Name: counter,
 						Help: name,
 					}, []string{"provider", "name", "room"})
@@ -128,7 +130,7 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 				if value > d.lastRate && now > d.timeRate {
 					avg := fmt.Sprintf("%s_%s", name, rateSuffix)
 					computed := (value - d.lastRate) / float64(now-d.timeRate) * 1000
-					PrometheusGauges[avg].WithLabelValues(d.methods.Labels()...).Set(computed)
+					prometheusGauges[avg].WithLabelValues(d.methods.Labels()...).Set(computed)
 					d.lastRate = value
 					d.timeRate = now
 				}
@@ -211,7 +213,7 @@ func main() {
 		logrus.Panic("no devices have been defined, exiting...")
 	}
 
-	r := prometheus.NewRegistry()
+	registry = prometheus.NewRegistry()
 
 	for _, d := range deviceList {
 		name := d.MetricName()
@@ -219,45 +221,45 @@ func main() {
 		if name != "" {
 			cat := d.CategoryName()
 
-			if _, prs := PrometheusGauges[name]; !prs {
-				PrometheusGauges[name] = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			if _, prs := prometheusGauges[name]; !prs {
+				prometheusGauges[name] = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 					Name: name,
 					Help: name,
 				}, []string{"provider", "name", "room"})
 
-				r.MustRegister(PrometheusGauges[name])
+				registry.MustRegister(prometheusGauges[name])
 			}
 
 			if cat == "energy" {
 				counter := fmt.Sprintf("%s_%s", name, totalSuffix)
 
-				if _, prs := PrometheusCounters[counter]; !prs {
-					PrometheusCounters[counter] = prometheus.NewCounterVec(prometheus.CounterOpts{
+				if _, prs := prometheusCounters[counter]; !prs {
+					prometheusCounters[counter] = prometheus.NewCounterVec(prometheus.CounterOpts{
 						Name: counter,
 						Help: name,
 					}, []string{"provider", "name", "room"})
 
-					r.MustRegister(PrometheusCounters[counter])
+					registry.MustRegister(prometheusCounters[counter])
 				}
 			}
 
 			if cat == "energy" {
 				avg := fmt.Sprintf("%s_%s", name, rateSuffix)
 
-				if _, prs := PrometheusGauges[avg]; !prs {
-					PrometheusGauges[avg] = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				if _, prs := prometheusGauges[avg]; !prs {
+					prometheusGauges[avg] = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 						Name: avg,
 						Help: name,
 					}, []string{"provider", "name", "room"})
 
-					r.MustRegister(PrometheusGauges[avg])
+					registry.MustRegister(prometheusGauges[avg])
 				}
 			}
 		}
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(r, promhttp.HandlerOpts{}))
+	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 
 	go readData(deviceList)
 

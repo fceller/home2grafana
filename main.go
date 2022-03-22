@@ -133,6 +133,9 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 					prometheusGauges[avg].WithLabelValues(d.methods.Labels()...).Set(computed)
 					d.lastRate = value
 					d.timeRate = now
+				} else if value < d.lastRate {
+					d.lastRate = value
+					d.timeRate = now
 				}
 			} else {
 				d.lastRate = value

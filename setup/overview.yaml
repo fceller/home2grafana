@@ -1,0 +1,32 @@
+---
+tables:
+  - title: Energy Overview
+    metrics:
+    - name: energy_watthour
+      header: Watt/h
+    - name: power_watt
+      header: Power
+    group:
+    - name: room
+      header: Raum
+    - name: name
+      header: Name
+  - title: Brightness
+    metrics:
+    - name: light
+      header: Licht
+    group:
+      - name: room
+        header: Raum
+      - name: name
+        header: Name
+  - title: Temperatur
+    metrics:
+    - name: temperature_celsius
+      header: Temperatur
+    group:
+    - name: room
+      header: Raum
+    - name: name
+      header: Name
+

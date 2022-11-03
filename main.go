@@ -34,6 +34,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 
 	"net/http"
@@ -95,7 +96,12 @@ var registry *prometheus.Registry
 const totalSuffix = "total"
 const rateSuffix = "rate"
 
+var SyncPoint sync.Mutex
+
 func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
+	SyncPoint.Lock()
+	defer SyncPoint.Unlock()
+
 	category := d.methods.CategoryName()
 	name := d.methods.MetricName()
 	value, err := d.methods.CurrentValue(ctx)
@@ -106,6 +112,7 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 		ctx.Pop()
 
 		prometheusGauges[name].WithLabelValues(d.methods.Labels()...).Set(value)
+		//d.methods.lastStr = fmt.Sprintf("%.2f", value)
 
 		if category == "energy" {
 			counter := fmt.Sprintf("%s_%s", name, totalSuffix)
@@ -150,8 +157,8 @@ func setPrometheusValue(ctx devices.Context, d *DeviceItem) uint64 {
 	}
 }
 
-func readData(deviceList []devices.DeviceInterface) {
-	if len(deviceList) == 0 {
+func readData(d *devices.Devices) {
+	if d.IsEmpty() {
 		return
 	}
 
@@ -160,17 +167,17 @@ func readData(deviceList []devices.DeviceInterface) {
 		Clog:      logrus.WithField("task", "read metrics"),
 	}
 
-	deviceHeap := make(PriorityQueue, len(deviceList))
+	deviceHeap := make(PriorityQueue, d.Length())
 	now := time.Now().UnixMilli()
 
-	for i, d := range deviceList {
+	for i, dev := range *d.Devices {
 		deviceHeap[i] = &DeviceItem{
-			methods:  d,
+			methods:  dev,
 			last:     math.NaN(),
 			lastRate: math.NaN(),
 			time:     now,
 			timeRate: now,
-			expiry:   now/1000 + (500+rand.Int63n(501))*int64(d.IntervalSec())/1000,
+			expiry:   now/1000 + (500+rand.Int63n(501))*int64(dev.IntervalSec())/1000,
 			index:    i,
 		}
 	}
@@ -178,13 +185,11 @@ func readData(deviceList []devices.DeviceInterface) {
 	heap.Init(&deviceHeap)
 
 	for deviceHeap.Len() > 0 {
-		now = time.Now().Unix()
-
 		item := heap.Pop(&deviceHeap).(*DeviceItem)
 		sleep := int64(1)
 
 		if now < item.expiry {
-			sleep = item.expiry - now
+			sleep = item.expiry - time.Now().Unix()
 		}
 
 		time.Sleep(time.Second * time.Duration(sleep))
@@ -193,10 +198,20 @@ func readData(deviceList []devices.DeviceInterface) {
 		defer ctx.Pop()
 
 		factor := setPrometheusValue(ctx, item)
-		item.expiry = now + int64(item.methods.IntervalSec()*factor)
+		item.expiry = time.Now().Unix() + int64(item.methods.IntervalSec()*factor)
 
 		heap.Push(&deviceHeap, item)
 	}
+}
+
+var GlobalDevices devices.Devices
+var GlobalOverview *Overview
+
+func overviewHandler(writer http.ResponseWriter, request *http.Request) {
+	SyncPoint.Lock()
+	defer SyncPoint.Unlock()
+
+	GenerateOverview(writer, GlobalOverview, &GlobalDevices)
 }
 
 func main() {
@@ -210,15 +225,15 @@ func main() {
 	flagset.BoolVar(&enableH2c, "h2c", false, "Enable h2c (http/2 over tcp) protocol.")
 	flagset.Parse(os.Args[1:])
 
-	deviceList := devices.LoadDevices(setup)
+	GlobalDevices = devices.LoadDevices(setup)
 
-	if len(deviceList) == 0 {
+	if GlobalDevices.IsEmpty() {
 		logrus.Panic("no devices have been defined, exiting...")
 	}
 
 	registry = prometheus.NewRegistry()
 
-	for _, d := range deviceList {
+	for _, d := range *GlobalDevices.Devices {
 		name := d.MetricName()
 
 		if name != "" {
@@ -261,10 +276,19 @@ func main() {
 		}
 	}
 
+	var err error
+	GlobalOverview, err = LoadOverviewDesc(setup)
+
+	if err != nil {
+		logrus.Panic(err)
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	mux.HandleFunc("/index.html", overviewHandler)
+	mux.HandleFunc("/", overviewHandler)
 
-	go readData(deviceList)
+	go readData(&GlobalDevices)
 
 	var srv *http.Server
 	if enableH2c {

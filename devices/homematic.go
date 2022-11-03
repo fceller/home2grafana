@@ -60,52 +60,69 @@ type HomematicDesc struct {
 }
 
 type HomematicDevice struct {
-	HmName    string
-	Name      string
-	Room      string
-	Interval  float64
-	ScriptUrl string
-	UserName  string
-	Password  string
-	Metric    string
-	Category  string
-	DPChannel int
-	DPName    string
+	metric    string
+	name      string
+	room      string
+	hmName    string
+	interval  float64
+	scriptUrl string
+	userName  string
+	password  string
+	category  string
+	dpChannel int
+	dpName    string
+	lastValue string
 }
 
-func (t HomematicDevice) FullName() string {
+func (t *HomematicDevice) DeviceID() string {
+	return fmt.Sprintf("homematic|%s", t.hmName)
+}
+
+func (t *HomematicDevice) Name() string {
+	return t.name
+}
+
+func (t *HomematicDevice) Room() string {
+	return t.room
+}
+
+func (t *HomematicDevice) FullName() string {
 	return fmt.Sprintf(
 		"%s[provider:homematic,hm:%s,name:%s,room:%s,interval:%v]",
-		t.Metric,
-		t.HmName,
-		t.Name,
-		t.Room,
-		t.Interval,
+		t.metric,
+		t.hmName,
+		t.name,
+		t.room,
+		t.interval,
 	)
 }
 
-func (t HomematicDevice) LogName() string {
-	return fmt.Sprintf("Homematic(%s/%s)", t.HmName, t.Name)
+func (t *HomematicDevice) LogName() string {
+	return fmt.Sprintf("Homematic(%s/%s)", t.hmName, t.name)
 }
 
-func (t HomematicDevice) Labels() []string {
-	return []string{"homematic", t.Name, t.Room}
+func (t *HomematicDevice) Labels() []string {
+	return []string{"homematic", t.name, t.room}
 }
 
-func (t HomematicDevice) IntervalSec() uint64 {
-	return uint64(t.Interval)
+func (t *HomematicDevice) IntervalSec() uint64 {
+	return uint64(t.interval)
 }
 
-func (t HomematicDevice) MetricName() string {
-	return t.Metric
+func (t *HomematicDevice) MetricName() string {
+	return t.metric
 }
 
-func (t HomematicDevice) CategoryName() string {
-	return t.Category
+func (t *HomematicDevice) CategoryName() string {
+	return t.category
 }
 
-func (t HomematicDevice) CurrentValue(ctx Context) (float64, error) {
-	return getValue(ctx, &t)
+func (t *HomematicDevice) CurrentValue(ctx Context) (float64, error) {
+	return getValue(ctx, t)
+}
+
+func (t *HomematicDevice) LastValue() string {
+	return t.lastValue
 }
 
 type homematicXml struct {
@@ -155,10 +172,10 @@ func readHomematicXml(
 
 func getValue(ctx Context, t *HomematicDevice) (float64, error) {
 	valueCmd := fmt.Sprintf(
-		`var value = dom.GetObject('%s:%d.%s').State();`, t.HmName, t.DPChannel, t.DPName)
+		`var value = dom.GetObject('%s:%d.%s').State();`, t.hmName, t.dpChannel, t.dpName)
 
 	info := homematicXml{}
-	err1 := readHomematicXml(ctx, t.ScriptUrl, t.UserName, t.Password, valueCmd, &info)
+	err1 := readHomematicXml(ctx, t.scriptUrl, t.userName, t.password, valueCmd, &info)
 
 	if err1 != nil {
 		return 0, err1
@@ -168,6 +185,19 @@ func getValue(ctx Context, t *HomematicDevice) (float64, error) {
 
 	if err2 != nil {
 		return 0, err2
+	}
+
+	switch t.category {
+	case "temperature":
+		t.lastValue = fmt.Sprintf("%.2f °C", value)
+	case "power":
+		t.lastValue = fmt.Sprintf("%.2f kW/h", value/1000)
+	case "energy":
+		t.lastValue = fmt.Sprintf("%.2f kW/h", value/1000)
+	case "light":
+		t.lastValue = fmt.Sprintf("%.2f", value)
+	default:
+		t.lastValue = fmt.Sprintf("%.2f %s", value, t.category)
 	}
 
 	return value, nil
@@ -204,7 +234,7 @@ func readHmDevice(ctx Context, channel int, name string, homematic *HomematicDes
 	return nil
 }
 
-func generateHmDevice(ctx Context, deviceList *[]DeviceInterface, desc *HomematicDesc) error {
+func generateHmDevice(ctx Context, devices *Devices, desc *HomematicDesc) error {
 	var err error
 
 	if desc.EnergyMetric != "" {
@@ -221,72 +251,72 @@ func generateHmDevice(ctx Context, deviceList *[]DeviceInterface, desc *Homemati
 
 	if desc.EnergyMetric != "" {
 		energy := HomematicDevice{
-			HmName:    desc.HmName,
-			Name:      desc.Name,
-			Room:      desc.Room,
-			Interval:  desc.Interval,
-			ScriptUrl: desc.ScriptUrl,
-			Metric:    desc.EnergyMetric,
-			Category:  "energy",
-			DPChannel: desc.EnergyChannel,
-			DPName:    "ENERGY_COUNTER",
+			name:      desc.Name,
+			room:      desc.Room,
+			hmName:    desc.HmName,
+			interval:  desc.Interval,
+			scriptUrl: desc.ScriptUrl,
+			metric:    desc.EnergyMetric,
+			category:  "energy",
+			dpChannel: desc.EnergyChannel,
+			dpName:    "ENERGY_COUNTER",
 		}
 
-		*deviceList = append(*deviceList, energy)
+		devices.addDevice(&energy)
 	}
 
 	if desc.PowerMetric != "" {
 		power := HomematicDevice{
-			HmName:    desc.HmName,
-			Name:      desc.Name,
-			Room:      desc.Room,
-			Interval:  desc.Interval,
-			ScriptUrl: desc.ScriptUrl,
-			Metric:    desc.PowerMetric,
-			Category:  "power",
-			DPChannel: desc.EnergyChannel,
-			DPName:    "POWER",
+			name:      desc.Name,
+			room:      desc.Room,
+			hmName:    desc.HmName,
+			interval:  desc.Interval,
+			scriptUrl: desc.ScriptUrl,
+			metric:    desc.PowerMetric,
+			category:  "power",
+			dpChannel: desc.EnergyChannel,
+			dpName:    "POWER",
 		}
 
-		*deviceList = append(*deviceList, power)
+		devices.addDevice(&power)
 	}
 
 	if desc.TemperatureMetric != "" {
 		temperature := HomematicDevice{
-			HmName:    desc.HmName,
-			Name:      desc.Name,
-			Room:      desc.Room,
-			Interval:  desc.Interval,
-			ScriptUrl: desc.ScriptUrl,
-			Metric:    desc.TemperatureMetric,
-			Category:  "temperature",
-			DPChannel: desc.TemperatureChannel,
-			DPName:    desc.TemperatureName,
+			name:      desc.Name,
+			room:      desc.Room,
+			hmName:    desc.HmName,
+			interval:  desc.Interval,
+			scriptUrl: desc.ScriptUrl,
+			metric:    desc.TemperatureMetric,
+			category:  "temperature",
+			dpChannel: desc.TemperatureChannel,
+			dpName:    desc.TemperatureName,
 		}
 
-		*deviceList = append(*deviceList, temperature)
+		devices.addDevice(&temperature)
 	}
 
 	if desc.LightMetric != "" {
 		light := HomematicDevice{
-			HmName:    desc.HmName,
-			Name:      desc.Name,
-			Room:      desc.Room,
-			Interval:  desc.Interval,
-			ScriptUrl: desc.ScriptUrl,
-			Metric:    desc.LightMetric,
-			Category:  "light",
-			DPChannel: desc.LightChannel,
-			DPName:    desc.LightName,
+			name:      desc.Name,
+			room:      desc.Room,
+			hmName:    desc.HmName,
+			interval:  desc.Interval,
+			scriptUrl: desc.ScriptUrl,
+			metric:    desc.LightMetric,
+			category:  "light",
+			dpChannel: desc.LightChannel,
+			dpName:    desc.LightName,
 		}
 
-		*deviceList = append(*deviceList, light)
+		devices.addDevice(&light)
 	}
 
 	return nil
 }
 
-func generateHomematic(ctx Context, deviceList *[]DeviceInterface, desc *HomematicDesc) error {
+func generateHomematic(ctx Context, devices *Devices, desc *HomematicDesc) error {
 	typeCmd := fmt.Sprintf(
 		`var channel = dom.GetObject('%s:0.UNREACH').Channel();
 		var device = dom.GetObject(dom.GetObject(channel).Device());
@@ -315,61 +345,61 @@ func generateHomematic(ctx Context, deviceList *[]DeviceInterface, desc *Homemat
 		desc.PowerChannel = 6
 		desc.TemperatureChannel = 0
 		desc.TemperatureName = "ACTUAL_TEMPERATURE"
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HM-ES-PMSw1-Pl":
 		desc.EnergyChannel = 2
 		desc.LightMetric = ""
 		desc.PowerChannel = 2
 		desc.TemperatureMetric = ""
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HM-ES-TX-WM":
 		desc.EnergyChannel = 1
 		desc.LightMetric = ""
 		desc.PowerChannel = 1
 		desc.TemperatureMetric = ""
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HmIP-WTH-2" || hssType == "HmIP-eTRV-B":
 		desc.EnergyMetric = ""
 		desc.LightMetric = ""
 		desc.PowerMetric = ""
 		desc.TemperatureChannel = 1
 		desc.TemperatureName = "ACTUAL_TEMPERATURE"
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HM-CC-RT-DN":
 		desc.EnergyMetric = ""
 		desc.LightMetric = ""
 		desc.PowerMetric = ""
 		desc.TemperatureChannel = 4
 		desc.TemperatureName = "ACTUAL_TEMPERATURE"
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HM-WDS10-TH-O" || hssType == "HM-WDS40-TH-I":
 		desc.EnergyMetric = ""
 		desc.LightMetric = ""
 		desc.PowerMetric = ""
 		desc.TemperatureChannel = 1
 		desc.TemperatureName = "TEMPERATURE"
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HmIP-SMI55":
 		desc.EnergyMetric = ""
 		desc.LightChannel = 3
 		desc.LightName = "CURRENT_ILLUMINATION"
 		desc.PowerMetric = ""
 		desc.TemperatureMetric = ""
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HmIP-SMI":
 		desc.EnergyMetric = ""
 		desc.LightChannel = 1
 		desc.LightName = "CURRENT_ILLUMINATION"
 		desc.PowerMetric = ""
 		desc.TemperatureMetric = ""
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HM-Sec-MDIR-2":
 		desc.EnergyMetric = ""
 		desc.LightChannel = 1
 		desc.LightName = "BRIGHTNESS"
 		desc.PowerMetric = ""
 		desc.TemperatureMetric = ""
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	case hssType == "HM-WDS100-C6-O":
 		desc.EnergyMetric = ""
 		desc.LightChannel = 1
@@ -377,7 +407,7 @@ func generateHomematic(ctx Context, deviceList *[]DeviceInterface, desc *Homemat
 		desc.PowerMetric = ""
 		desc.TemperatureChannel = 1
 		desc.TemperatureName = "TEMPERATURE"
-		return generateHmDevice(ctx, deviceList, desc)
+		return generateHmDevice(ctx, devices, desc)
 	default:
 		ctx.Clog.Warn("unknown HssType: ", hssType)
 	}
@@ -385,7 +415,7 @@ func generateHomematic(ctx Context, deviceList *[]DeviceInterface, desc *Homemat
 	return nil
 }
 
-func LoadHomematicDevices(ctx Context, deviceList *[]DeviceInterface, device Device) error {
+func LoadHomematicDevices(ctx Context, devices *Devices, device Device) error {
 	duration, err1 := time.ParseDuration(device.Source.Interval)
 
 	if err1 != nil {
@@ -423,7 +453,7 @@ func LoadHomematicDevices(ctx Context, deviceList *[]DeviceInterface, device Dev
 			Interval:          duration.Seconds(),
 		}
 
-		err := generateHomematic(ctx, deviceList, &homematic)
+		err := generateHomematic(ctx, devices, &homematic)
 
 		if err != nil {
 			ctx.Warn(err, "cannot load homematic device data")

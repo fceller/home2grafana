@@ -37,13 +37,15 @@ import (
 )
 
 type TasmotaDevice struct {
-	Metric    string
-	Name      string
-	Room      string
-	Interval  float64
-	Category  string
-	EnergyUrl string
-	StatusUrl string
+	metric    string
+	name      string
+	room      string
+	interval  float64
+	category  string
+	address   string
+	energyUrl string
+	statusUrl string
+	lastValue string
 }
 
 type TasmotaStatus struct {
@@ -88,38 +90,50 @@ type TasmotaEnergy struct {
 	} `json:"StatusSNS"`
 }
 
-func (t TasmotaDevice) FullName() string {
+func (t *TasmotaDevice) DeviceID() string {
+	return fmt.Sprintf("tasmota|%s", t.address)
+}
+
+func (t *TasmotaDevice) Name() string {
+	return t.name
+}
+
+func (t *TasmotaDevice) Room() string {
+	return t.room
+}
+
+func (t *TasmotaDevice) FullName() string {
 	return fmt.Sprintf(
 		"%s[provider:tasmota,name:%s,room:%s,interval:%v]",
-		t.Metric,
-		t.Name,
-		t.Room,
-		t.Interval,
+		t.metric,
+		t.name,
+		t.room,
+		t.interval,
 	)
 }
 
-func (t TasmotaDevice) LogName() string {
-	return fmt.Sprintf("Tasmota(%s)", t.Name)
+func (t *TasmotaDevice) LogName() string {
+	return fmt.Sprintf("Tasmota(%s)", t.name)
 }
 
-func (t TasmotaDevice) Labels() []string {
-	return []string{"tasmota", t.Name, t.Room}
+func (t *TasmotaDevice) Labels() []string {
+	return []string{"tasmota", t.name, t.room}
 }
 
-func (t TasmotaDevice) IntervalSec() uint64 {
-	return uint64(t.Interval)
+func (t *TasmotaDevice) IntervalSec() uint64 {
+	return uint64(t.interval)
 }
 
-func (t TasmotaDevice) MetricName() string {
-	return t.Metric
+func (t *TasmotaDevice) MetricName() string {
+	return t.metric
 }
 
-func (t TasmotaDevice) CategoryName() string {
-	return t.Category
+func (t *TasmotaDevice) CategoryName() string {
+	return t.category
 }
 
-func (t TasmotaDevice) CurrentValue(ctx Context) (float64, error) {
-	response, err1 := ctx.NetClient.Get(t.EnergyUrl)
+func (t *TasmotaDevice) CurrentValue(ctx Context) (float64, error) {
+	response, err1 := ctx.NetClient.Get(t.energyUrl)
 
 	if err1 != nil {
 		return 0, err1
@@ -140,17 +154,25 @@ func (t TasmotaDevice) CurrentValue(ctx Context) (float64, error) {
 		return 0, err3
 	}
 
-	if t.Category == "energy" {
-		return tasmota.StatusSNS.ENERGY.Total * 1000, nil
-	} else if t.Category == "power" {
-		return float64(tasmota.StatusSNS.ENERGY.Power), nil
+	if t.category == "energy" {
+		value := tasmota.StatusSNS.ENERGY.Total * 1000
+		t.lastValue = fmt.Sprintf("%.2f kW/h", value/1000)
+		return value, nil
+	} else if t.category == "power" {
+		value := float64(tasmota.StatusSNS.ENERGY.Power)
+		t.lastValue = fmt.Sprintf("%.2f kW/h", value/1000)
+		return value, nil
 	} else {
-		return 0, errors.New(fmt.Sprintf("unknown category %s", t.Category))
+		return 0, errors.New(fmt.Sprintf("unknown category %s", t.category))
 	}
 }
 
+func (t *TasmotaDevice) LastValue() string {
+	return t.lastValue
+}
+
 func readTasmotaName(netClient *http.Client, tasmota *TasmotaDevice) error {
-	response, err1 := netClient.Get(tasmota.StatusUrl)
+	response, err1 := netClient.Get(tasmota.statusUrl)
 
 	if err1 != nil {
 		return err1
@@ -171,15 +193,15 @@ func readTasmotaName(netClient *http.Client, tasmota *TasmotaDevice) error {
 	}
 
 	if len(status.Status.FriendlyName) > 0 {
-		tasmota.Name = status.Status.FriendlyName[0]
+		tasmota.name = status.Status.FriendlyName[0]
 	} else if len(status.Status.DeviceName) > 0 {
-		tasmota.Name = status.Status.DeviceName
+		tasmota.name = status.Status.DeviceName
 	}
 
 	return nil
 }
 
-func LoadTasmotaDevices(ctx Context, deviceList *[]DeviceInterface, device Device) error {
+func LoadTasmotaDevices(ctx Context, devices *Devices, device Device) error {
 	duration, err := time.ParseDuration(device.Source.Interval)
 
 	if err != nil {
@@ -196,20 +218,21 @@ func LoadTasmotaDevices(ctx Context, deviceList *[]DeviceInterface, device Devic
 		statusUrl := fmt.Sprintf("http://%s/cm?cmnd=Status", d.Address)
 
 		energy := TasmotaDevice{
-			Metric:    device.Source.EnergyMetric,
-			Category:  "energy",
-			Name:      d.Name,
-			Room:      d.Room,
-			EnergyUrl: energyUrl,
-			StatusUrl: statusUrl,
-			Interval:  duration.Seconds(),
+			metric:    device.Source.EnergyMetric,
+			name:      d.Name,
+			room:      d.Room,
+			category:  "energy",
+			address:   d.Address,
+			energyUrl: energyUrl,
+			statusUrl: statusUrl,
+			interval:  duration.Seconds(),
 		}
 
-		if len(energy.Name) == 0 {
+		if len(energy.name) == 0 {
 			err := readTasmotaName(ctx.NetClient, &energy)
 
 			if err == nil {
-				ctx.PushFields(logrus.Fields{"name": energy.Name, "room": energy.Room})
+				ctx.PushFields(logrus.Fields{"name": energy.name, "room": energy.room})
 				ctx.Info("found device")
 				ctx.Pop()
 			} else {
@@ -219,21 +242,22 @@ func LoadTasmotaDevices(ctx Context, deviceList *[]DeviceInterface, device Devic
 		}
 
 		if device.Source.EnergyMetric != "" {
-			*deviceList = append(*deviceList, energy)
+			devices.addDevice(&energy)
 		}
 
 		if device.Source.PowerMetric != "" {
 			power := TasmotaDevice{
-				Metric:    device.Source.PowerMetric,
-				Category:  "power",
-				Name:      energy.Name,
-				Room:      energy.Room,
-				EnergyUrl: energy.EnergyUrl,
-				StatusUrl: energy.StatusUrl,
-				Interval:  energy.Interval,
+				metric:    device.Source.PowerMetric,
+				name:      energy.name,
+				room:      energy.room,
+				category:  "power",
+				address:   d.Address,
+				energyUrl: energy.energyUrl,
+				statusUrl: energy.statusUrl,
+				interval:  energy.interval,
 			}
 
-			*deviceList = append(*deviceList, power)
+			devices.addDevice(&power)
 		}
 	}
 

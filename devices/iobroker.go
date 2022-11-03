@@ -34,48 +34,60 @@ import (
 )
 
 type IoBrokerDevice struct {
-	Metric   string
-	Name     string
-	Room     string
-	Interval float64
-	Address  string
-
-	TemperatureUrl string
+	metric         string
+	name           string
+	room           string
+	interval       float64
+	address        string
+	temperatureUrl string
+	lastValue      string
 }
 
-func (t IoBrokerDevice) FullName() string {
+func (t *IoBrokerDevice) DeviceID() string {
+	return fmt.Sprintf("iobroker|%s", t.address)
+}
+
+func (t *IoBrokerDevice) Name() string {
+	return t.name
+}
+
+func (t *IoBrokerDevice) Room() string {
+	return t.room
+}
+
+func (t *IoBrokerDevice) FullName() string {
 	return fmt.Sprintf(
 		"%s[provider:iobroker,endpoint:%s,name:%s,room:%s,interval:%v]",
-		t.Metric,
-		t.Address,
-		t.Name,
-		t.Room,
-		t.Interval,
+		t.metric,
+		t.address,
+		t.name,
+		t.room,
+		t.interval,
 	)
 }
 
-func (t IoBrokerDevice) LogName() string {
-	return fmt.Sprintf("IoBroker(%s)", t.Name)
+func (t *IoBrokerDevice) LogName() string {
+	return fmt.Sprintf("IoBroker(%s)", t.name)
 }
 
-func (t IoBrokerDevice) Labels() []string {
-	return []string{"iobroker", t.Name, t.Room}
+func (t *IoBrokerDevice) Labels() []string {
+	return []string{"iobroker", t.name, t.room}
 }
 
-func (t IoBrokerDevice) IntervalSec() uint64 {
-	return uint64(t.Interval)
+func (t *IoBrokerDevice) IntervalSec() uint64 {
+	return uint64(t.interval)
 }
 
-func (t IoBrokerDevice) MetricName() string {
-	return t.Metric
+func (t *IoBrokerDevice) MetricName() string {
+	return t.metric
 }
 
-func (t IoBrokerDevice) CategoryName() string {
+func (t *IoBrokerDevice) CategoryName() string {
 	return "temperature"
 }
 
-func (t IoBrokerDevice) CurrentValue(ctx Context) (float64, error) {
-	response, err1 := ctx.NetClient.Get(t.TemperatureUrl)
+func (t *IoBrokerDevice) CurrentValue(ctx Context) (float64, error) {
+	response, err1 := ctx.NetClient.Get(t.temperatureUrl)
 
 	if err1 != nil {
 		return 0, err1
@@ -95,10 +107,15 @@ func (t IoBrokerDevice) CurrentValue(ctx Context) (float64, error) {
 		return 0, err3
 	}
 
+	t.lastValue = fmt.Sprintf("%.2f °C", temp)
 	return temp, nil
 }
 
-func LoadIoBrokerDevices(ctx Context, deviceList *[]DeviceInterface, device Device) error {
+func (t *IoBrokerDevice) LastValue() string {
+	return t.lastValue
+}
+
+func LoadIoBrokerDevices(ctx Context, devices *Devices, device Device) error {
 	duration, err := time.ParseDuration(device.Source.Interval)
 
 	if err != nil {
@@ -115,19 +132,19 @@ func LoadIoBrokerDevices(ctx Context, deviceList *[]DeviceInterface, device Devi
 
 		if device.Source.TemperatureMetric != "" {
 			iobroker := IoBrokerDevice{
-				Metric:         device.Source.TemperatureMetric,
-				Name:           d.Name,
-				Room:           d.Room,
-				TemperatureUrl: temperatureUrl,
-				Address:        d.Address,
-				Interval:       duration.Seconds(),
+				name:           d.Name,
+				room:           d.Room,
+				metric:         device.Source.TemperatureMetric,
+				temperatureUrl: temperatureUrl,
+				address:        d.Address,
+				interval:       duration.Seconds(),
 			}
 
-			ctx.PushFields(logrus.Fields{"name": iobroker.Name, "room": iobroker.Room, "address": iobroker.Address})
+			ctx.PushFields(logrus.Fields{"name": iobroker.name, "room": iobroker.room, "address": iobroker.address})
 			ctx.Info("found device")
 			ctx.Pop()
 
-			*deviceList = append(*deviceList, iobroker)
+			devices.addDevice(&iobroker)
 		}
 	}
 

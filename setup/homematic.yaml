@@ -6,7 +6,7 @@ source:
   temperature_metric: temperature_celsius
   light_metric: light
   interval: 120s
-  address: 192.168.160.21
+  address: homematic.smarthome.dr-celler.de
   devices:
     - hm_name: HmIP-RF.0001DD89971DDD
       name: Server

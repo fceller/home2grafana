@@ -5,13 +5,6 @@ source:
   power_metric: power_watt
   interval: 90s
   devices:
-    - address: 192.168.160.200
+    - address: waschtrockner.energy.dr-celler.de
       room: Bad
-    - address: 192.168.160.201
-      room: Waschküche
-    - address: 192.168.160.202
-      room: Waschküche
-    - address: 192.168.160.203
-      room: Küche
-    - address: 192.168.160.204
-      room: Server-Keller
+

@@ -59,17 +59,56 @@ type Device struct {
 }
 
 type DeviceInterface interface {
+	DeviceID() string
+	MetricName() string
+	Name() string
+	Room() string
 	FullName() string
 	LogName() string
 	Labels() []string
 	CategoryName() string
 	IntervalSec() uint64
 
-	MetricName() string
 	CurrentValue(Context) (float64, error)
+	LastValue() string
 }
 
-func LoadDevices(setup string) []DeviceInterface {
+type DeviceList struct {
+	Devices *[]DeviceInterface
+}
+
+type Devices struct {
+	DeviceList
+	ByDID map[string]DeviceList
+}
+
+func (d *Devices) addDevice(di DeviceInterface) {
+	if d.Devices == nil {
+		d.Devices = new([]DeviceInterface)
+	}
+
+	*d.Devices = append(*d.Devices, di)
+
+	name := di.DeviceID()
+	val, ok := d.ByDID[name]
+
+	if !ok {
+		val = DeviceList{Devices: new([]DeviceInterface)}
+		d.ByDID[name] = val
+	}
+
+	*d.ByDID[name].Devices = append(*val.Devices, di)
+}
+
+func (d *Devices) IsEmpty() bool {
+	return len(*d.Devices) == 0
+}
+
+func (d *Devices) Length() int {
+	return len(*d.Devices)
+}
+
+func LoadDevices(setup string) Devices {
 	yamlRE := regexp.MustCompile(`\.yaml$`)
 
 	ctx := Context{
@@ -81,7 +120,9 @@ func LoadDevices(setup string) []DeviceInterface {
 	ctx.PushField("root", ctx.Root)
 	defer ctx.Pop()
 
-	deviceList := make([]DeviceInterface, 0)
+	devices := Devices{}
+	devices.Devices = new([]DeviceInterface)
+	devices.ByDID = make(map[string]DeviceList)
 
 	err := filepath.Walk(ctx.Root,
 		func(path string, info os.FileInfo, err error) error {
@@ -89,7 +130,7 @@ func LoadDevices(setup string) []DeviceInterface {
 				return err
 			}
 
-			if !info.IsDir() && yamlRE.MatchString(info.Name()) {
+			if !info.IsDir() && yamlRE.MatchString(info.Name()) && info.Name() != "overview.yaml" {
 				ctx.PushField("filepath", path)
 				defer ctx.Pop()
 
@@ -116,11 +157,11 @@ func LoadDevices(setup string) []DeviceInterface {
 
 				switch {
 				case provider == "tasmota":
-					return LoadTasmotaDevices(ctx, &deviceList, device)
+					return LoadTasmotaDevices(ctx, &devices, device)
 				case provider == "homematic":
-					return LoadHomematicDevices(ctx, &deviceList, device)
+					return LoadHomematicDevices(ctx, &devices, device)
 				case provider == "iobroker":
-					return LoadIoBrokerDevices(ctx, &deviceList, device)
+					return LoadIoBrokerDevices(ctx, &devices, device)
 				default:
 					ctx.Clog.Warn("unkown provider")
 					return nil
@@ -134,5 +175,5 @@ func LoadDevices(setup string) []DeviceInterface {
 		ctx.Fatal(err, "cannot walk device directory")
 	}
 
-	return deviceList
+	return devices
 }

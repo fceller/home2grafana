@@ -211,7 +211,9 @@ func overviewHandler(writer http.ResponseWriter, request *http.Request) {
 	SyncPoint.Lock()
 	defer SyncPoint.Unlock()
 
-	GenerateOverview(writer, GlobalOverview, &GlobalDevices)
+	details := request.URL.Query().Get("details")
+
+	GenerateOverview(writer, GlobalOverview, &GlobalDevices, details == "1")
 }
 
 func main() {

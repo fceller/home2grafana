@@ -4,18 +4,11 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d06f9076-3135-4085-83bc-73bde49e08bc" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/overview.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/setup/overview.yaml" afterDir="false" />
+    <list default="true" id="d06f9076-3135-4085-83bc-73bde49e08bc" name="Changes" comment="Added Overview handler">
+      <change afterPath="$PROJECT_DIR$/setup/overview.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/devices/device.go" beforeDir="false" afterPath="$PROJECT_DIR$/devices/device.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/devices/homematic.go" beforeDir="false" afterPath="$PROJECT_DIR$/devices/homematic.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/devices/iobroker.go" beforeDir="false" afterPath="$PROJECT_DIR$/devices/iobroker.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/devices/tasmota.go" beforeDir="false" afterPath="$PROJECT_DIR$/devices/tasmota.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup/homematic.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/setup/homematic.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup/iobroker.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/setup/iobroker.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup/tasmota.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/setup/tasmota.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/overview.go" beforeDir="false" afterPath="$PROJECT_DIR$/overview.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -26,6 +19,7 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Go File" />
+        <option value="HTML File" />
       </list>
     </option>
   </component>
@@ -54,6 +48,7 @@
   </component>
   <component name="PropertiesComponent">
     <property name="DefaultGoTemplateProperty" value="Go File" />
+    <property name="DefaultHtmlFileTemplate" value="HTML File" />
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
@@ -97,7 +92,22 @@
       </map>
     </option>
   </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Added Overview handler" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added Overview handler" />
+  </component>
   <component name="VgoProject">
     <integration-enabled>true</integration-enabled>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/main.go</url>
+          <line>281</line>
+          <option name="timeStamp" value="32" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>

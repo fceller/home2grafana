@@ -30,11 +30,11 @@ import (
 	"github.com/fceller/home2grafana/devices"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"sort"
 	"strconv"
-	"text/template"
 )
 
 type OverviewTable struct {
@@ -51,6 +51,7 @@ type OverviewTable struct {
 
 type Overview struct {
 	Tables []OverviewTable `yaml:"tables"`
+	html   *template.Template
 }
 
 func LoadOverviewDesc(setup string) (*Overview, error) {
@@ -74,7 +75,14 @@ func LoadOverviewDesc(setup string) (*Overview, error) {
 	err = yaml.Unmarshal(yfile, &overview)
 
 	if err != nil {
-		ctx.Warn(err, "cannot parse file")
+		ctx.Warn(err, "cannot parse file 'overview.yaml'")
+		return nil, err
+	}
+
+	overview.html, err = template.ParseFiles(setup + "/overview.html")
+
+	if err != nil {
+		ctx.Warn(err, "cannot parse file 'overview.html'")
 		return nil, err
 	}
 
@@ -94,10 +102,15 @@ func Max(x, y int) int {
 	return x
 }
 
-func generateTable(overviewTable *OverviewTable, devs *devices.Devices) Table {
+func generateTable(overviewTable *OverviewTable, devs *devices.Devices, details bool) Table {
 	table := Table{}
 	table.Title = overviewTable.Title
-	table.Headers = []string{"Device"}
+
+	if details {
+		table.Headers = []string{"Device"}
+	} else {
+		table.Headers = []string{}
+	}
 
 	for _, group := range overviewTable.Group {
 		table.Headers = append(table.Headers, group.Header)
@@ -107,12 +120,21 @@ func generateTable(overviewTable *OverviewTable, devs *devices.Devices) Table {
 		table.Headers = append(table.Headers, metric.Header)
 	}
 
-	start := 1
+	start := 0
+
+	if details {
+		start = 1
+	}
+
 	stop := start + len(overviewTable.Group)
 
 	for k, d := range devs.ByDID {
-		row := []string{k}
+		row := []string{}
 		use := false
+
+		if details {
+			row = append(row, k)
+		}
 
 		for _, r := range overviewTable.Metrics {
 			found := false
@@ -163,9 +185,11 @@ func generateTable(overviewTable *OverviewTable, devs *devices.Devices) Table {
 	return table
 }
 
-func GenerateOverview(writer io.Writer, overview *Overview, devs *devices.Devices) {
+func GenerateOverview(writer io.Writer, overview *Overview, devs *devices.Devices, details bool) {
+	tables := make([]Table, 0)
+
 	for _, overviewTable := range overview.Tables {
-		table := generateTable(&overviewTable, devs)
+		table := generateTable(&overviewTable, devs, details)
 		widths := make([]int, len(table.Headers))
 
 		for k, v := range table.Headers {
@@ -188,13 +212,8 @@ func GenerateOverview(writer io.Writer, overview *Overview, devs *devices.Device
 			}
 		}
 
-		text := template.New("Table")
-		text = template.Must(text.Parse(`
--- {{ .Title }} --
-
-{{ range .Headers }}{{ . }}  {{ end }}{{ range .Rows }}
-{{ range . }}{{ . }}  {{ end }}{{ end }}
-        `))
-		text.Execute(writer, table)
+		tables = append(tables, table)
 	}
+
+	overview.html.Execute(writer, tables)
 }

@@ -46,13 +46,13 @@
 <table class="blueTable">
     <thead>
         <tr>
-            {{ range .Headers }}<th>{{ . }}</th>  {{ end }}
+            {{ range .Headers }}<th align="{{if .IsRight}}right{{else}}left{{end}}">{{ .Entry }}</th>  {{ end }}
         </tr>
     </thead>
     <tbody>
         {{ range .Rows }}
         <tr>
-          {{ range . }}<td>{{ . }}</td>{{ end }}
+          {{ range . }}<td align="{{if .IsRight}}right{{else}}left{{end}}">{{ .Entry }}</td>{{ end }}
         </tr>
         {{ end }}
     </tbody>

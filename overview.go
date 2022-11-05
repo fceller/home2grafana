@@ -26,7 +26,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/fceller/home2grafana/devices"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -34,7 +33,6 @@ import (
 	"io"
 	"io/ioutil"
 	"sort"
-	"strconv"
 )
 
 type OverviewTable struct {
@@ -89,10 +87,15 @@ func LoadOverviewDesc(setup string) (*Overview, error) {
 	return &overview, nil
 }
 
+type TableEntry struct {
+	Entry   string
+	IsRight bool
+}
+
 type Table struct {
 	Title   string
-	Headers []string
-	Rows    [][]string
+	Headers []TableEntry
+	Rows    [][]TableEntry
 }
 
 func Max(x, y int) int {
@@ -107,17 +110,17 @@ func generateTable(overviewTable *OverviewTable, devs *devices.Devices, details 
 	table.Title = overviewTable.Title
 
 	if details {
-		table.Headers = []string{"Device"}
+		table.Headers = []TableEntry{TableEntry{"Device", false}}
 	} else {
-		table.Headers = []string{}
+		table.Headers = []TableEntry{}
 	}
 
 	for _, group := range overviewTable.Group {
-		table.Headers = append(table.Headers, group.Header)
+		table.Headers = append(table.Headers, TableEntry{group.Header, false})
 	}
 
 	for _, metric := range overviewTable.Metrics {
-		table.Headers = append(table.Headers, metric.Header)
+		table.Headers = append(table.Headers, TableEntry{metric.Header, true})
 	}
 
 	start := 0
@@ -129,11 +132,11 @@ func generateTable(overviewTable *OverviewTable, devs *devices.Devices, details 
 	stop := start + len(overviewTable.Group)
 
 	for k, d := range devs.ByDID {
-		row := []string{}
+		row := []TableEntry{}
 		use := false
 
 		if details {
-			row = append(row, k)
+			row = append(row, TableEntry{k, false})
 		}
 
 		for _, r := range overviewTable.Metrics {
@@ -145,26 +148,25 @@ func generateTable(overviewTable *OverviewTable, devs *devices.Devices, details 
 						for _, group := range overviewTable.Group {
 							switch group.Name {
 							case "room":
-								row = append(row, w.Room())
+								row = append(row, TableEntry{w.Room(), false})
 							case "name":
-								row = append(row, w.Name())
+								row = append(row, TableEntry{w.Name(), false})
 							default:
-								row = append(row, "")
+								row = append(row, TableEntry{"", false})
 							}
 						}
 					}
-					row = append(row, w.LastValue())
-					use = true
+					row = append(row, TableEntry{w.LastValue(), true})
 					found = true
+					use = true
 					break
 				}
 			}
 
 			if !found {
-				row = append(row, "-")
+				row = append(row, TableEntry{"-", true})
 			}
 		}
-
 		if use {
 			table.Rows = append(table.Rows, row)
 		}
@@ -172,10 +174,10 @@ func generateTable(overviewTable *OverviewTable, devs *devices.Devices, details 
 
 	sort.SliceStable(table.Rows, func(i, j int) bool {
 		for d := start; d < stop; d++ {
-			if table.Rows[i][d] < table.Rows[j][d] {
+			if table.Rows[i][d].Entry < table.Rows[j][d].Entry {
 				return true
 			}
-			if table.Rows[i][d] > table.Rows[j][d] {
+			if table.Rows[i][d].Entry > table.Rows[j][d].Entry {
 				return false
 			}
 		}
@@ -193,24 +195,26 @@ func GenerateOverview(writer io.Writer, overview *Overview, devs *devices.Device
 		widths := make([]int, len(table.Headers))
 
 		for k, v := range table.Headers {
-			widths[k] = len(v)
+			widths[k] = len(v.Entry)
 		}
 
 		for _, w := range table.Rows {
 			for k, v := range w {
-				widths[k] = Max(widths[k], len(v))
+				widths[k] = Max(widths[k], len(v.Entry))
 			}
 		}
 
-		for k, v := range table.Headers {
-			table.Headers[k] = fmt.Sprintf("%-"+strconv.Itoa(widths[k])+"s", v)
-		}
-
-		for _, w := range table.Rows {
-			for k, v := range w {
-				w[k] = fmt.Sprintf("%-"+strconv.Itoa(widths[k])+"s", v)
+		/*
+			for k, v := range table.Headers {
+				table.Headers[k] = fmt.Sprintf("%-"+strconv.Itoa(widths[k])+"s", v)
 			}
-		}
+
+			for _, w := range table.Rows {
+				for k, v := range w {
+					w[k] = fmt.Sprintf("%-"+strconv.Itoa(widths[k])+"s", v)
+				}
+			}
+		*/
 
 		tables = append(tables, table)
 	}

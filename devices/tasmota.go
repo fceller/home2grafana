@@ -91,7 +91,7 @@ type TasmotaEnergy struct {
 }
 
 func (t *TasmotaDevice) DeviceID() string {
-	return fmt.Sprintf("tasmota|%s", t.address)
+	return fmt.Sprintf("tasmota: %s", t.address)
 }
 
 func (t *TasmotaDevice) Name() string {
@@ -160,7 +160,7 @@ func (t *TasmotaDevice) CurrentValue(ctx Context) (float64, error) {
 		return value, nil
 	} else if t.category == "power" {
 		value := float64(tasmota.StatusSNS.ENERGY.Power)
-		t.lastValue = fmt.Sprintf("%.2f kW/h", value/1000)
+		t.lastValue = fmt.Sprintf("%.2f W/h", value)
 		return value, nil
 	} else {
 		return 0, errors.New(fmt.Sprintf("unknown category %s", t.category))

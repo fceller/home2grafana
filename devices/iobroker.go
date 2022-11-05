@@ -44,7 +44,7 @@ type IoBrokerDevice struct {
 }
 
 func (t *IoBrokerDevice) DeviceID() string {
-	return fmt.Sprintf("iobroker|%s", t.address)
+	return fmt.Sprintf("iobroker: %s", t.address)
 }
 
 func (t *IoBrokerDevice) Name() string {

@@ -1,17 +1,17 @@
 ---
 tables:
-  - title: Energy Overview
+  - title: Verbrauch
     metrics:
     - name: energy_watthour
-      header: Watt/h
+      header: Gesamtverbrauch
     - name: power_watt
-      header: Power
+      header: Verbrauch
     group:
     - name: room
       header: Raum
     - name: name
       header: Name
-  - title: Brightness
+  - title: Helligkeit
     metrics:
     - name: light
       header: Licht

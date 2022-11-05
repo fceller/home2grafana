@@ -75,7 +75,7 @@ type HomematicDevice struct {
 }
 
 func (t *HomematicDevice) DeviceID() string {
-	return fmt.Sprintf("homematic|%s", t.hmName)
+	return fmt.Sprintf("homematic: %s", t.hmName)
 }
 
 func (t *HomematicDevice) Name() string {
@@ -191,7 +191,7 @@ func getValue(ctx Context, t *HomematicDevice) (float64, error) {
 	case "temperature":
 		t.lastValue = fmt.Sprintf("%.2f °C", value)
 	case "power":
-		t.lastValue = fmt.Sprintf("%.2f kW/h", value/1000)
+		t.lastValue = fmt.Sprintf("%.2f W/h", value)
 	case "energy":
 		t.lastValue = fmt.Sprintf("%.2f kW/h", value/1000)
 	case "light":
